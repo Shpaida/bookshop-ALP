@@ -1,0 +1,19 @@
+{
+    "xsappname": "bim",
+    "tenant-mode": "dedicated",
+    "scopes": [
+        {
+            "name": "$XSAPPNAME.sync",
+            "description": "sync",
+            "grant-as-authority-to-apps": ["$XSAPPNAME(application,bim-api)"]
+        },
+        {
+            "name": "$XSAPPNAME.admin",
+            "description": "admin"
+        },
+        {
+            "name": "$XSAPPNAME.business",
+            "description": "business"
+        }
+    ]
+}

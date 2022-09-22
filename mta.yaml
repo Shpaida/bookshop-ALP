@@ -1,0 +1,160 @@
+_schema-version: "3.1"
+ID: bim
+description: Test ALP Application
+version: 1.1.5
+modules:
+- name: bim-srv
+  type: nodejs
+  path: gen/srv
+  requires:
+  - name: bim-db
+  - name: bim-uaa
+  - name: bim-destination
+  - name: bim-connectivity
+  - name: bim-logs
+  provides:
+  - name: srv-api
+    properties:
+      srv-url: ${default-url}
+  parameters:
+    buildpack: nodejs_buildpack
+- name: bim-db-deployer
+  type: hdb
+  path: gen/db
+  requires:
+  - name: bim-db
+  - name: bim-uaa
+  - name: bim-logs
+  parameters:
+    buildpack: nodejs_buildpack
+- name: bim-destinations
+  type: com.sap.application.content
+  requires:
+  - name: bim-uaa
+    parameters:
+      service-key:
+        name: bim-uaa-key
+  - name: bim-html5-repo-host
+    parameters:
+      service-key:
+        name: bim-html5-repo-host-key
+  - name: srv-api
+  - name: bim-destination
+    parameters:
+      content-target: true
+  parameters:
+    content:
+      instance:
+        destinations:
+        - Authentication: OAuth2UserTokenExchange
+          Name: bim-app-srv
+          TokenServiceInstanceName: bim-uaa
+          TokenServiceKeyName: bim-uaa-key
+          URL: ~{srv-api/srv-url}
+          sap.cloud.service: bim.service
+        - Name: bim-html5-repo-host
+          ServiceInstanceName: bim-html5-repo-host
+          ServiceKeyName: bim-html5-repo-host-key
+          sap.cloud.service: bim.service
+        - Authentication: OAuth2UserTokenExchange
+          Name: bim-uaa
+          ServiceInstanceName: bim-uaa
+          ServiceKeyName: bim-uaa-key
+          sap.cloud.service: bim.service
+        existing_destinations_policy: update
+  build-parameters:
+    no-source: true
+- name: bim-app-content
+  type: com.sap.application.content
+  path: .
+  requires:
+  - name: bim-html5-repo-host
+    parameters:
+      content-target: true
+  build-parameters:
+    build-result: resources
+    requires:
+    - artifacts:
+      - listofbooks.zip
+      name: listofbooks
+      target-path: resources/
+    - artifacts:
+      - listofbooksv2.zip
+      name: listofbooksv2
+      target-path: resources/
+- name: listofbooks
+  type: html5
+  path: app/listofbooks
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+- name: listofbooksv2
+  type: html5
+  path: listofbooksv2
+  build-parameters:
+    build-result: dist
+    builder: custom
+    commands:
+    - npm install
+    - npm run build:cf
+    supported-platforms: []
+resources:
+- name: bim-uaa
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-plan: application
+- name: bim-db
+  type: com.sap.xs.hdi-container
+  parameters:
+    service: hana
+    service-plan: hdi-shared
+  properties:
+    hdi-service-name: ${service-name}
+- name: bim-destination
+  type: org.cloudfoundry.managed-service
+  parameters:
+    config:
+      HTML5Runtime_enabled: true
+      init_data:
+        instance:
+          destinations:
+          - Authentication: NoAuthentication
+            Name: ui5
+            ProxyType: Internet
+            Type: HTTP
+            URL: https://ui5.sap.com
+          existing_destinations_policy: update
+      version: 1.0.0
+    service: destination
+    service-plan: lite
+- name: bim-html5-repo-host
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: html5-apps-repo
+    service-plan: app-host
+- name: bim-connectivity
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: connectivity
+    service-plan: lite
+- name: bim-logs
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: application-logs
+    service-plan: lite
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+  - builder: custom
+    commands:
+    - npm install --production
+    - npm run build:cf
+    - npm run build:copycsntoproxy
